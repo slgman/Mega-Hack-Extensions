@@ -1,0 +1,11 @@
+{
+  "geode": "5.10.0",
+  "gd": {
+    "win": "2.2081"
+  },
+  "id": "shaxid.megahack-api",
+  "name": "Mega Hack API",
+  "version": "v1.0.0",
+  "developer": "shaxid",
+  "description": ""
+}
