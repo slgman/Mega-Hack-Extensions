@@ -13,10 +13,10 @@
 namespace mh {
 
     enum class MessageType : int {
-        Info = 0,
-        Success = 1,
-        Warning = 2,
-        Error = 3,
+        Error = 0, // Error window (with an OK button)
+        Info = 1, // Standard informational message (OK)
+        Confirm = 2, // Action selection window (Cancel / OK)
+        Notice = 3, // Static window/panel without close buttons
     };
 
     // UI element tag. Passed as the first argument to all listeners.
