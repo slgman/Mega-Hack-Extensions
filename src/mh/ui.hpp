@@ -1,15 +1,7 @@
 #pragma once
 
-// High-level API: describe a tab in code and get JSON, definitions (names),
-// default values, persistence between launches, and listeners. No manual paths or strings.
-//
-//   mh::Tab tab("MY_TAB", "My Tab");
-//   tab.button("RUN", "Run", [] { ... })
-//      .checkbox("ENABLED", "Enabled", true, [](bool on) { ... })
-//      .layout("SPEED_ROW", "Speed", [](mh::Layout& row) {
-//          row.spinner("SPEED", "Speed", 1.0, {.min = 0, .max = 10, .step = 0.1});
-//      });
-//   tab.registerTab();
+// Tab builder on top of api.hpp: describe a tab in code, get JSON, names,
+// default values, persistence and listeners. Usage example is in README.
 
 #include "api.hpp"
 
@@ -25,18 +17,16 @@
 
 namespace mh {
 
-    // Spinner bounds. Field order matters for designated initialization: {.min=0, .max=10, .step=0.1}
+    // Field order matters for designated init: {.min = 0, .max = 10, .step = 0.1}
     struct Range {
         double min = 0.0;
         double max = 100.0;
         double step = 1.0;
     };
 
-    // A widget value in any form. Converted to the required type through Tab::get<T>().
     using Value = std::variant<bool, int64_t, double, std::string>;
 
-    // ---- value storage between launches -----------------------------------
-    // By default (if glue.cpp is included), values are stored in your Geode mod's saved values.
+    // Where widget values live between launches. glue.cpp plugs in Geode saved values.
     class Storage {
     public:
         virtual ~Storage() = default;
@@ -47,7 +37,7 @@ namespace mh {
         virtual void saveNumber(std::string const& key, double value) = 0;
         virtual void saveString(std::string const& key, std::string const& value) = 0;
     };
-    void setStorage(std::shared_ptr<Storage> storage); // nullptr — disable persistence
+    void setStorage(std::shared_ptr<Storage> storage); // nullptr disables persistence
     std::shared_ptr<Storage> storage();
 
     class Layout;
@@ -65,7 +55,7 @@ namespace mh {
             double defNumber = 0.0;
             std::string defString;
             Range range;
-            bool decimal = true; // Spinner: true => double, false => int64
+            bool decimal = true; // spinner: double or int64
 
             std::function<void()> onClick;
             std::function<void(bool)> onBool;
@@ -74,60 +64,50 @@ namespace mh {
 
             std::vector<Node> children;
 
-            std::string rawJson;                                          // Kind::Raw
-            std::vector<std::pair<std::string, std::string>> rawDefs;     // Kind::Raw: path -> name
+            std::string rawJson;
+            std::vector<std::pair<std::string, std::string>> rawDefs; // full path -> name
         };
 
         struct TabImpl;
     }
 
-    // Common widget-adding methods for Tab and Layout. Each returns *this for chaining.
+    // Widget methods shared by Tab and Layout, all chainable.
     template <class Self>
     class Container {
     public:
-        // Button. onClick is called when pressed.
         Self& button(std::string id, std::string label, std::function<void()> onClick = {}) {
-            detail::Node n; n.kind = detail::Kind::Button; n.id = std::move(id); n.label = std::move(label);
-            n.onClick = std::move(onClick);
-            return add(std::move(n));
+            return add({.kind = detail::Kind::Button, .id = std::move(id), .label = std::move(label),
+                        .onClick = std::move(onClick)});
         }
 
-        // Checkbox (bool).
         Self& checkbox(std::string id, std::string label, bool def = false, std::function<void(bool)> onChange = {}) {
-            detail::Node n; n.kind = detail::Kind::Checkbox; n.id = std::move(id); n.label = std::move(label);
-            n.defBool = def; n.onBool = std::move(onChange);
-            return add(std::move(n));
+            return add({.kind = detail::Kind::Checkbox, .id = std::move(id), .label = std::move(label),
+                        .defBool = def, .onBool = std::move(onChange)});
         }
 
-        // Spinner with floating-point values (double).
         Self& spinner(std::string id, std::string label, double def, Range range = {}, std::function<void(double)> onChange = {}) {
-            detail::Node n; n.kind = detail::Kind::Spinner; n.id = std::move(id); n.label = std::move(label);
-            n.defNumber = def; n.range = range; n.decimal = true; n.onNumber = std::move(onChange);
-            return add(std::move(n));
+            return add({.kind = detail::Kind::Spinner, .id = std::move(id), .label = std::move(label),
+                        .defNumber = def, .range = range, .decimal = true, .onNumber = std::move(onChange)});
         }
 
-        // Spinner with integer values (int64).
         Self& integer(std::string id, std::string label, int64_t def, Range range = {}, std::function<void(double)> onChange = {}) {
-            detail::Node n; n.kind = detail::Kind::Spinner; n.id = std::move(id); n.label = std::move(label);
-            n.defNumber = static_cast<double>(def); n.range = range; n.decimal = false; n.onNumber = std::move(onChange);
-            return add(std::move(n));
+            return add({.kind = detail::Kind::Spinner, .id = std::move(id), .label = std::move(label),
+                        .defNumber = static_cast<double>(def), .range = range, .decimal = false,
+                        .onNumber = std::move(onChange)});
         }
 
-        // Text field (string).
         Self& textbox(std::string id, std::string label, std::string def = {}, std::function<void(std::string const&)> onChange = {}) {
-            detail::Node n; n.kind = detail::Kind::Textbox; n.id = std::move(id); n.label = std::move(label);
-            n.defString = std::move(def); n.onString = std::move(onChange);
-            return add(std::move(n));
+            return add({.kind = detail::Kind::Textbox, .id = std::move(id), .label = std::move(label),
+                        .defString = std::move(def), .onString = std::move(onChange)});
         }
 
-        // Group of widgets in a single row/block. Inside the lambda, the same methods are available.
+        // Several widgets in one row. The lambda gets the same methods.
         Self& layout(std::string id, std::string label, std::function<void(Layout&)> build);
 
-        // Fallback for widgets that are not available in the builder (combobox, colour, shortcut, picker, option...).
-        // json — one complete JSON widget object; defs — pairs of {full path, name}.
+        // For widgets the builder doesn't know yet (combobox, colour, shortcut...).
+        // json is one complete widget object, defs are {full path, name} pairs.
         Self& raw(std::string json, std::vector<std::pair<std::string, std::string>> defs = {}) {
-            detail::Node n; n.kind = detail::Kind::Raw; n.rawJson = std::move(json); n.rawDefs = std::move(defs);
-            return add(std::move(n));
+            return add({.kind = detail::Kind::Raw, .rawJson = std::move(json), .rawDefs = std::move(defs)});
         }
 
     private:
@@ -147,43 +127,37 @@ namespace mh {
 
     template <class Self>
     Self& Container<Self>::layout(std::string id, std::string label, std::function<void(Layout&)> build) {
-        detail::Node n; n.kind = detail::Kind::Layout; n.id = std::move(id); n.label = std::move(label);
         Layout inner;
         if (build) build(inner);
-        n.children = std::move(inner.nodes());
-        return add(std::move(n));
+        return add({.kind = detail::Kind::Layout, .id = std::move(id), .label = std::move(label),
+                    .children = std::move(inner.nodes())});
     }
 
-    // Tab. This is a lightweight handle: copies point to the same tab,
-    // and after registerTab(), its internal state lives until the end of the game (MH stores pointers to it).
+    // Cheap handle: copies share the same tab. After registerTab() the state lives until
+    // the game exits, because Mega Hack keeps raw pointers into it.
     class Tab : public Container<Tab> {
     public:
-        // id: only A-Z a-z 0-9 _ (the path separator '/' is forbidden). title — the title shown in the MH tab.
+        // id: A-Z a-z 0-9 _ only ('/' is the path separator)
         Tab(std::string id, std::string title);
 
-        Tab& onOpen(std::function<void()> cb);    // MH menu opened
-        Tab& onCommit(std::function<void()> cb);  // menu closed, values committed
+        Tab& onOpen(std::function<void()> cb);
+        Tab& onCommit(std::function<void()> cb);
         Tab& onUnload(std::function<void()> cb);
 
-        // Persist values between launches (enabled by default).
-        Tab& persist(bool enabled);
+        Tab& persist(bool enabled); // on by default
 
-        // Validates the description, writes definitions and default values, registers the tab in MH
-        // and attaches listeners. false => check lastError() and the log.
+        // false => see lastError()
         bool registerTab();
         bool isRegistered() const;
         std::string const& lastError() const;
 
-        // Tab JSON (for debugging and tests).
         std::string toJson() const;
 
         std::string const& id() const;
-        // Full widget key. Accepts a short id ("SPEED", if it is unique within the tab)
-        // or a relative path ("SPEED_ROW/SPEED"). An empty string means the widget was not found or is ambiguous.
+        // Full key by short id ("SPEED", if unique in the tab) or relative path ("SPEED_ROW/SPEED").
+        // Empty if not found or ambiguous.
         std::string path(std::string const& id) const;
 
-        // Read/write a widget value. Type T can be any convenient type; reading uses the method
-        // required by the widget itself (checkbox -> bool, spinner -> double, integer -> int64, textbox -> string).
         std::optional<Value> value(std::string const& id) const;
         bool setValue(std::string const& id, Value const& v);
 
@@ -225,9 +199,8 @@ namespace mh {
         std::shared_ptr<detail::TabImpl> m_impl;
     };
 
-    // ---- when tabs can be registered -----------------------------------
-    // Mega Hack does not load instantly. onReady waits for the main menu (and, if needed, delayFrames frames),
-    // checks that MH is installed, and only then calls fn. If MH is not present, fn is simply not called.
-    // Implementation is in glue.cpp (requires Geode).
+    // Mega Hack isn't ready at startup. This waits for the main menu (plus delayFrames),
+    // checks that MH is installed and only then calls fn; without MH it never does.
+    // Implemented in glue.cpp, needs Geode.
     void onReady(std::function<void()> fn, int delayFrames = 0);
 }

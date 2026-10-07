@@ -1,4 +1,4 @@
-// Low-level wrapper around Mega Hack exports. Windows-only.
+// Windows-only: resolves Mega Hack exports through GetProcAddress.
 #include "api.hpp"
 
 #include <atomic>
@@ -94,9 +94,8 @@ namespace mh {
             return reinterpret_cast<T>(GetProcAddress(g_module, mangled));
         }
 
-        // Required symbol: if it is not found, init() returns false and reports which one is missing.
+        // REQ: init() fails if the symbol is missing. OPT: the wrapper silently becomes a no-op.
         #define REQ(var, label, sym) do { var = resolve<decltype(var)>(sym); if (!var) g_missing.emplace_back(label); } while (0)
-        // Optional symbol: the wrapper function simply becomes a no-op.
         #define OPT(var, label, sym) do { var = resolve<decltype(var)>(sym); } while (0)
 
         void resolveAll() {
@@ -147,9 +146,9 @@ namespace mh {
         if (detail::g_ready) return true;
 
         auto* mod = geode::Loader::get()->getLoadedMod("absolllute.megahack");
-        if (!mod) return false; // Mega Hack is not installed / not loaded yet — this is not an error
+        if (!mod) return false; // not installed or not loaded yet, not an error
 
-        // First use the filename from the Geode mod itself, and only then the hardcoded name.
+        // the dll can be renamed, so ask Geode for the name first
         detail::g_module = GetModuleHandleW(mod->getBinaryPath().filename().wstring().c_str());
         if (!detail::g_module) detail::g_module = GetModuleHandleW(L"absolllute.megahack.dll");
         if (!detail::g_module) {
@@ -211,7 +210,7 @@ namespace mh {
         void showError(std::string const& message) { if (detail::p_showError) detail::p_showError(message); }
         void showMessage(MessageType type, std::string const& message, std::function<void()> onClose) {
             if (!detail::p_showMessage) return;
-            // An empty std::function passed to MH would throw bad_function_call when invoked inside external code.
+            // MH calls this unconditionally, an empty std::function would throw inside its code
             if (!onClose) onClose = [] {};
             detail::p_showMessage(type, message, std::move(onClose));
         }

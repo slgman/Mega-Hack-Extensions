@@ -7,5 +7,5 @@
   "name": "Mega Hack API",
   "version": "v1.0.0",
   "developer": "shaxid",
-  "description": ""
+  "description": "C++ builder API for adding custom tabs and widgets to Mega Hack."
 }

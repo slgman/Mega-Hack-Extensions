@@ -1,5 +1,4 @@
-// Geode integration: saves values in the mod's saved values and provides a safe time to register tabs.
-// This translation unit is compiled only inside a Geode mod (it is not included in tests).
+// Geode glue: saved values as storage, and onReady(). Not part of the Geode-free tests.
 #include "ui.hpp"
 
 #include <Geode/Geode.hpp>
@@ -10,19 +9,18 @@ using namespace geode::prelude;
 namespace mh {
     namespace {
         class GeodeStorage final : public Storage {
+            template <class T>
+            static std::optional<T> load(std::string const& key) {
+                auto* mod = Mod::get();
+                if (!mod->hasSavedValue(key)) return std::nullopt;
+                return mod->getSavedValue<T>(key);
+            }
+
         public:
-            std::optional<bool> loadBool(std::string const& key) override {
-                if (!Mod::get()->hasSavedValue(key)) return std::nullopt;
-                return Mod::get()->getSavedValue<bool>(key);
-            }
-            std::optional<double> loadNumber(std::string const& key) override {
-                if (!Mod::get()->hasSavedValue(key)) return std::nullopt;
-                return Mod::get()->getSavedValue<double>(key);
-            }
-            std::optional<std::string> loadString(std::string const& key) override {
-                if (!Mod::get()->hasSavedValue(key)) return std::nullopt;
-                return Mod::get()->getSavedValue<std::string>(key);
-            }
+            std::optional<bool> loadBool(std::string const& key) override { return load<bool>(key); }
+            std::optional<double> loadNumber(std::string const& key) override { return load<double>(key); }
+            std::optional<std::string> loadString(std::string const& key) override { return load<std::string>(key); }
+
             void saveBool(std::string const& key, bool v) override { Mod::get()->setSavedValue(key, v); }
             void saveNumber(std::string const& key, double v) override { Mod::get()->setSavedValue(key, v); }
             void saveString(std::string const& key, std::string const& v) override { Mod::get()->setSavedValue(key, v); }
@@ -39,19 +37,16 @@ namespace mh {
         }
         bool g_menuShown = false;
 
-        void runNow(std::function<void()> const& fn) {
-            if (!mh::init()) {
-                log::info("mh: Mega Hack not found — extensions skipped");
-                return;
-            }
-            fn();
-        }
-
-        // queueInMainThread executes on the next frame, so N nested calls = N frames of delay.
+        // queueInMainThread runs on the next frame, so every nested call is one frame of delay
         void runLater(std::function<void()> fn, int frames) {
             queueInMainThread([fn = std::move(fn), frames]() mutable {
-                if (frames <= 0) runNow(fn);
-                else runLater(std::move(fn), frames - 1);
+                if (frames > 0) {
+                    runLater(std::move(fn), frames - 1);
+                } else if (mh::init()) {
+                    fn();
+                } else {
+                    log::info("mh: Mega Hack not found, extensions skipped");
+                }
             });
         }
     }

@@ -10,9 +10,15 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 project(MhExtensions VERSION 1.0.0)
 
-file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
+option(MH_BUILD_EXAMPLES "Build the demo tabs from src/examples" ON)
 
-add_library(${PROJECT_NAME} SHARED ${SOURCES})
+file(GLOB MH_SOURCES CONFIGURE_DEPENDS src/mh/*.cpp)
+if (MH_BUILD_EXAMPLES)
+    file(GLOB DEMO_SOURCES CONFIGURE_DEPENDS src/main.cpp src/examples/*.cpp)
+endif()
+
+add_library(${PROJECT_NAME} SHARED ${MH_SOURCES} ${DEMO_SOURCES})
+target_include_directories(${PROJECT_NAME} PRIVATE src)
 
 if (NOT DEFINED ENV{GEODE_SDK})
     message(FATAL_ERROR "Unable to find Geode SDK! Please define GEODE_SDK environment variable to point to Geode")

@@ -1,4 +1,4 @@
-// Example 2. All builder widgets: checkbox, spinners (floating-point and integer), text, buttons, nested layouts.
+// Every builder widget: checkbox, spinners (double and integer), textbox, buttons, nested layout.
 #include <Geode/Geode.hpp>
 #include "../mh/mh.hpp"
 
@@ -7,7 +7,7 @@
 using namespace geode::prelude;
 
 namespace examples {
-    // The handle can be stored globally to read values from anywhere in the mod.
+    // global, so the values can be read from anywhere in the mod
     static mh::Tab g_tab("EXAMPLE_WIDGETS", "Widgets");
 
     void allWidgets() {
@@ -25,13 +25,12 @@ namespace examples {
                 log::info("NAME -> {}", s);
             })
             .button("PRINT", "Print values", [] {
-                // get<T>() automatically selects the correct way to read the widget type.
                 log::info("enabled={} speed={} lock={} count={} name={}",
                     g_tab.get<bool>("ENABLED"), g_tab.get<double>("SPEED"), g_tab.get<bool>("LOCK"),
                     g_tab.get<int>("COUNT"), g_tab.get<std::string>("NAME"));
             })
             .button("RESET", "Reset speed", [] {
-                g_tab.set("SPEED", 1.0);   // writing from code (also persists between launches)
+                g_tab.set("SPEED", 1.0);
             });
 
         if (!g_tab.registerTab()) log::error("allWidgets: {}", g_tab.lastError());
